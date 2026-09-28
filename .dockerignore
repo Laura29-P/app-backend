@@ -1,0 +1,17 @@
+.git
+**/node_modules
+**/vendor
+**/dist
+**/.env
+**/.env.*
+**/*.sqlite*
+**/*.log
+**/.phpunit*
+bootstrap/cache/*.php
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
+**/*.key
+**/*.jks
+**/*.keystore
