@@ -71,16 +71,33 @@ class SubscriptionController
         }
 
         if ($session->failed()) {
-            $stripeMessage = $session->json('error.message', 'Respuesta inválida de Stripe.');
+            $code = $session->json('error.code');
+            $param = $session->json('error.param');
+            $reference = (string) \Illuminate\Support\Str::uuid();
+            [$reason, $message] = match (true) {
+                $session->status() === 401 => ['stripe_auth', 'Stripe rechazó la clave del servidor. Revisa STRIPE_SECRET en Render.'],
+                $session->status() === 403 => ['stripe_permissions', 'La clave de Stripe no tiene permisos para crear el pago. Revisa sus permisos en Stripe.'],
+                in_array($param, ['success_url', 'cancel_url'], true) => ['stripe_return_url', 'Stripe rechazó la dirección de regreso. Revisa APP_URL para Android y FRONTEND_URL para la web en Render.'],
+                is_string($param) && str_starts_with($param, 'line_items') => ['stripe_price', 'Stripe rechazó el precio del plan. Revisa que el precio sea recurrente y pertenezca a la misma cuenta y modo que STRIPE_SECRET.'],
+                $param === 'customer_email' => ['stripe_email', 'Stripe rechazó el correo de tu cuenta. Revisa que sea una dirección válida.'],
+                $session->status() === 429 => ['stripe_rate_limit', 'Stripe recibió demasiadas solicitudes. Espera un momento e inténtalo de nuevo.'],
+                $session->status() >= 500 => ['stripe_unavailable', 'Stripe no está disponible temporalmente. Inténtalo de nuevo en unos minutos.'],
+                default => ['stripe_rejected', 'Stripe rechazó la configuración del pago. Referencia: '.$reference],
+            };
             logger()->error('Stripe checkout rejected the request.', [
                 'status' => $session->status(),
-                'message' => $stripeMessage,
+                'code' => $code,
+                'param' => $param,
+                'reason' => $reason,
+                'reference' => $reference,
+                'stripe_request_id' => $session->header('Request-Id'),
+                'plan' => $plan,
             ]);
 
             return response()->json([
-                'message' => config('app.debug')
-                    ? "Stripe rechazó el checkout: {$stripeMessage}"
-                    : 'No se pudo iniciar el pago con Stripe.',
+                'message' => $message,
+                'code' => $reason,
+                'reference' => $reference,
             ], 502);
         }
 

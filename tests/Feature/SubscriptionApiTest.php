@@ -150,4 +150,31 @@ class SubscriptionApiTest extends TestCase
         $this->getJson('/api/billing/android-return?subscription=success&session_id=invalid')->assertUnprocessable();
         $this->getJson('/api/account/access')->assertJsonPath('can_access', false);
     }
+
+    public function test_checkout_explains_stripe_rejections_without_exposing_raw_errors(): void
+    {
+        config(['app.debug' => false]);
+        $cases = [
+            [401, null, 'stripe_auth'],
+            [403, null, 'stripe_permissions'],
+            [400, 'success_url', 'stripe_return_url'],
+            [400, 'cancel_url', 'stripe_return_url'],
+            [400, 'line_items[0][price]', 'stripe_price'],
+            [400, 'customer_email', 'stripe_email'],
+            [429, null, 'stripe_rate_limit'],
+            [503, null, 'stripe_unavailable'],
+            [400, null, 'stripe_rejected'],
+        ];
+        $sequence = Http::sequence();
+        foreach ($cases as [$status, $param, $reason]) {
+            $sequence->push(['error' => ['param' => $param, 'message' => 'sensitive-provider-detail']], $status);
+        }
+        Http::fake(['api.stripe.com/v1/checkout/sessions' => $sequence]);
+        foreach ($cases as [$status, $param, $reason]) {
+            $this->postJson('/api/billing/checkout', ['plan' => 'family', 'client' => 'android'])
+                ->assertStatus(502)->assertJsonPath('code', $reason)
+                ->assertJsonStructure(['message', 'reference'])
+                ->assertDontSee('sensitive-provider-detail');
+        }
+    }
 }
