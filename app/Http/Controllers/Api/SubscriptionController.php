@@ -44,6 +44,9 @@ class SubscriptionController
         }
 
         $user = $request->user();
+        $returnUrl = $request->input('client') === 'android'
+            ? rtrim(config('app.url'), '/').'/api/billing/android-return'
+            : config('app.frontend_url');
         try {
             $session = Http::withBasicAuth($secret, '')
                 ->withOptions(['verify' => config('services.stripe.ca_bundle')])
@@ -56,8 +59,8 @@ class SubscriptionController
                     'client_reference_id' => (string) $user->id,
                     'metadata[plan]' => $plan,
                     'subscription_data[metadata][plan]' => $plan,
-                    'success_url' => config('app.frontend_url').'?subscription=success&session_id={CHECKOUT_SESSION_ID}',
-                    'cancel_url' => config('app.frontend_url').'?subscription=cancelled&plan='.$plan,
+                    'success_url' => $returnUrl.'?subscription=success&session_id={CHECKOUT_SESSION_ID}',
+                    'cancel_url' => $returnUrl.'?subscription=cancelled&plan='.$plan,
                 ]);
         } catch (ConnectionException $exception) {
             report($exception);

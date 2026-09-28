@@ -138,4 +138,16 @@ class SubscriptionApiTest extends TestCase
         Http::assertSent(fn ($request) => $request['line_items[0][price]'] === 'price_family'
             && str_contains($request['success_url'], 'session_id={CHECKOUT_SESSION_ID}'));
     }
+
+    public function test_android_checkout_returns_to_the_backend_bridge(): void
+    {
+        config(['app.url' => 'https://api.example.com']);
+        Http::fake(['api.stripe.com/v1/checkout/sessions' => Http::response(['url' => 'https://checkout.stripe.com/test'])]);
+        $this->postJson('/api/billing/checkout', ['plan' => 'family', 'client' => 'android'])->assertOk();
+        Http::assertSent(fn ($request) => $request['success_url'] === 'https://api.example.com/api/billing/android-return?subscription=success&session_id={CHECKOUT_SESSION_ID}');
+        $this->get('/api/billing/android-return?subscription=success&session_id=cs_test_paid')
+            ->assertOk()->assertSee('aventurakids://billing/return', false);
+        $this->getJson('/api/billing/android-return?subscription=success&session_id=invalid')->assertUnprocessable();
+        $this->getJson('/api/account/access')->assertJsonPath('can_access', false);
+    }
 }

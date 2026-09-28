@@ -10,6 +10,15 @@ use Illuminate\Support\Facades\Route;
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/billing/webhook', [SubscriptionController::class, 'webhook']);
+Route::get('/billing/android-return', function (\Illuminate\Http\Request $request) {
+    $data = $request->validate([
+        'subscription' => ['required', 'in:success,cancelled'],
+        'session_id' => ['required_if:subscription,success', 'nullable', 'regex:/^cs_[a-zA-Z0-9_]+$/', 'max:255'],
+    ]);
+    $url = 'aventurakids://billing/return?'.http_build_query($data);
+    return response()->view('android-return', ['url' => $url])
+        ->header('Cache-Control', 'no-store')->header('Referrer-Policy', 'no-referrer');
+});
 
 Route::middleware('api.token')->group(function () {
 	Route::get('/account/access', [SubscriptionController::class, 'access']);
