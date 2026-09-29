@@ -9,10 +9,10 @@ use Illuminate\Http\Request;
 class CharacterController
 {
     private const CHARACTERS = [
-        'luna' => 10,
-        'niko' => 25,
-        'sol' => 50,
-        'mara' => 75,
+        'luna' => 0,
+        'niko' => 5,
+        'sol' => 10,
+        'mara' => 15,
     ];
 
     public function show(Request $request): JsonResponse
